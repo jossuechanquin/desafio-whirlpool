@@ -408,6 +408,7 @@ const PUNTOS_POR_ACIERTO = 10;
 
 let ESTADO = {
   nombre: "",
+  pais: "",
   intento: 1,
   rondaActual: 1,
   preguntasSesion: { 1: [], 2: [], 3: [] },
@@ -547,6 +548,19 @@ function renderInicio(){
     <div class="intro-sub">Supera las 3 rondas y demuestra que eres el asesor experto que ningún cliente puede rechazar. Al finalizar, <strong>¡crea tu sticker personal de Crack Mundialista</strong> y compártelo con tu equipo! 🏆</div>
     <label class="campo-label" for="input-nombre">Tu nombre (como quieres que aparezca en tu sticker)</label>
     <input type="text" id="input-nombre" placeholder="Ej. Jossue C." maxlength="30" autocomplete="off">
+
+    <label class="campo-label" for="select-pais" style="margin-top:14px;">Tu país</label>
+    <select id="select-pais" style="width:100%;background:var(--negro2);border:1px solid #34343b;color:var(--texto);padding:14px 16px;border-radius:10px;font-size:15px;outline:none;appearance:none;-webkit-appearance:none;cursor:pointer;">
+      <option value="">— Selecciona tu país —</option>
+      <option value="Guatemala">🇬🇹 Guatemala</option>
+      <option value="Honduras">🇭🇳 Honduras</option>
+      <option value="El Salvador">🇸🇻 El Salvador</option>
+      <option value="Nicaragua">🇳🇮 Nicaragua</option>
+      <option value="Costa Rica">🇨🇷 Costa Rica</option>
+      <option value="Panamá">🇵🇦 Panamá</option>
+      <option value="Ecuador">🇪🇨 Ecuador</option>
+    </select>
+
     <button class="btn" id="btn-continuar-nombre">Entrar al Estadio ⚽</button>
   `;
   document.getElementById('logo-hero').src = logoIsotipoDataUrl();
@@ -559,7 +573,13 @@ function renderInicio(){
 function onContinuarNombre(){
   const val = document.getElementById('input-nombre').value.trim();
   if(!val){ document.getElementById('input-nombre').style.borderColor='var(--incorrecto)'; return; }
+  const pais = document.getElementById('select-pais').value;
+  if(!pais){
+    document.getElementById('select-pais').style.borderColor='var(--incorrecto)';
+    return;
+  }
   ESTADO.nombre = val;
+  ESTADO.pais = pais;
   guardarUltimoNombre(val);
   renderSeleccionIntento();
 }
@@ -825,6 +845,7 @@ async function finalizarJuego(){
 
   const resultado = {
     nombre: ESTADO.nombre,
+    pais: ESTADO.pais || '',
     intento: ESTADO.intento,
     score: ESTADO.score,
     correctas: ESTADO.correctas,
@@ -887,6 +908,7 @@ async function finalizarJuego(){
 
   const envio = await enviarResultado({
     nombre: ESTADO.nombre,
+    pais: ESTADO.pais || '',
     modulo: MODULO_ACTUAL,
     juego: "cuestionario",
     intento: ESTADO.intento,

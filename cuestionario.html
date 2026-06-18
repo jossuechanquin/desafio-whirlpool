@@ -684,6 +684,16 @@ function guardarUltimoNombre(nombre){
 }
 
 // ============================================================
+// INICIAR JUEGO
+// ============================================================
+
+function iniciarJuego(intento){
+  ESTADO.intento = intento;
+  prepararSesion();
+  renderTransicionRonda(1, true);
+}
+
+// ============================================================
 // TRANSICIÓN DE RONDA
 // ============================================================
 

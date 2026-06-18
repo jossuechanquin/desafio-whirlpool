@@ -525,6 +525,162 @@ async function obtenerRanking(){
 }
 
 // ============================================================
+// INICIAR JUEGO
+// ============================================================
+
+function iniciarJuego(intento){
+  ESTADO.intento = intento;
+  prepararSesion();
+  renderTransicionRonda(1, true);
+}
+
+// ============================================================
+// TRANSICIÓN DE RONDA
+// ============================================================
+
+function renderTransicionRonda(numRonda, esInicio){
+  const info = RONDA_INFO[numRonda];
+  const cont = $('#pantalla-app');
+  cont.innerHTML = `
+    <div class="transicion">
+      <div class="num-ronda">RONDA ${numRonda} DE 3</div>
+      <h2>${info.nombre}</h2>
+      <p>${info.intro}</p>
+      <button class="btn" id="btn-empezar-ronda">${esInicio ? 'Comenzar Ronda 1' : 'Continuar →'}</button>
+    </div>
+  `;
+  document.getElementById('btn-empezar-ronda').addEventListener('click', () => {
+    ESTADO.rondaActual = numRonda;
+    ESTADO.indiceEnRonda = 0;
+    ESTADO.respondida = false;
+    renderPregunta();
+  });
+}
+
+// ============================================================
+// PANTALLA DE PREGUNTA
+// ============================================================
+
+function renderPregunta(){
+  const ronda = ESTADO.rondaActual;
+  const preguntas = ESTADO.preguntasSesion[ronda];
+  const idx = ESTADO.indiceEnRonda;
+  const pregunta = preguntas[idx];
+
+  const totalEnRonda = preguntas.length;
+  const numGlobal = sumaPreguntasRondasPrevias(ronda) + idx + 1;
+  const pctGlobal = Math.round((numGlobal-1) / ESTADO.totalPreguntas * 100);
+
+  const cont = $('#pantalla-app');
+  cont.innerHTML = `
+    <div class="hud">
+      <span class="ronda-tag">${RONDA_INFO[ronda].nombre}</span>
+      <div class="progreso-wrap">
+        <div class="barra-progreso"><div style="width:${pctGlobal}%"></div></div>
+      </div>
+      <span class="score-box">⚡ ${ESTADO.score} pts</span>
+      <button class="btn-audio-cuestionario" id="btn-audio-cuestionario">${AUDIO_ACTIVO ? '🔊' : '🔇'}</button>
+    </div>
+    <div class="pregunta-num">Pregunta ${idx+1} de ${totalEnRonda} · (${numGlobal}/${ESTADO.totalPreguntas} total)</div>
+    <div class="pregunta-texto">${escapeHtml(pregunta.pregunta)}</div>
+    <div class="opciones" id="lista-opciones"></div>
+    <div id="zona-retro"></div>
+    <div class="siguiente-wrap" id="zona-siguiente"></div>
+  `;
+
+  const btnAudio = document.getElementById('btn-audio-cuestionario');
+  if(btnAudio){
+    btnAudio.addEventListener('click', () => {
+      const activo = toggleAudio();
+      btnAudio.textContent = activo ? '🔊' : '🔇';
+    });
+  }
+
+
+  const listaOpciones = document.getElementById('lista-opciones');
+  pregunta.opciones.forEach((texto, i) => {
+    const btnOp = el('button', 'opcion', escapeHtml(texto));
+    btnOp.dataset.idx = i;
+    btnOp.addEventListener('click', () => onResponder(i, pregunta));
+    listaOpciones.appendChild(btnOp);
+  });
+
+  ESTADO.respondida = false;
+}
+
+function sumaPreguntasRondasPrevias(rondaActual){
+  let suma = 0;
+  for(let r=1; r<rondaActual; r++){
+    suma += ESTADO.preguntasSesion[r].length;
+  }
+  return suma;
+}
+
+function onResponder(indiceElegido, pregunta){
+  if(ESTADO.respondida) return;
+  ESTADO.respondida = true;
+
+  const esCorrecta = indiceElegido === pregunta.correcta;
+  if(esCorrecta){
+    ESTADO.score += PUNTOS_POR_ACIERTO;
+    ESTADO.correctas += 1;
+    ESTADO.resultadosPorRonda[ESTADO.rondaActual] += 1;
+  }
+
+  // Marcar visualmente las opciones
+  const botones = document.querySelectorAll('#lista-opciones .opcion');
+  botones.forEach(btn => {
+    btn.disabled = true;
+    const i = Number(btn.dataset.idx);
+    if(i === pregunta.correcta){
+      btn.classList.add('correcta');
+    }
+    if(i === indiceElegido && !esCorrecta){
+      btn.classList.add('incorrecta');
+    }
+  });
+
+  // Retroalimentación
+  const zonaRetro = document.getElementById('zona-retro');
+  zonaRetro.innerHTML = `
+    <div class="retro-box ${esCorrecta ? 'ok' : 'no'}">
+      <span class="etiqueta">${esCorrecta ? '✓ Correcto' : '✕ No es la respuesta correcta'}</span>
+      ${escapeHtml(pregunta.retro)}
+    </div>
+  `;
+
+  // Botón siguiente
+  const zonaSig = document.getElementById('zona-siguiente');
+  const esUltimaDeRonda = ESTADO.indiceEnRonda === ESTADO.preguntasSesion[ESTADO.rondaActual].length - 1;
+  const esUltimaRonda = ESTADO.rondaActual === 3;
+
+  let textoBoton = "Siguiente pregunta →";
+  if(esUltimaDeRonda && !esUltimaRonda) textoBoton = `Finalizar ${RONDA_INFO[ESTADO.rondaActual].nombre.split('·')[0].trim()} →`;
+  if(esUltimaDeRonda && esUltimaRonda) textoBoton = "Ver mis resultados →";
+
+  const btnSiguiente = el('button','btn', textoBoton);
+  btnSiguiente.id = 'btn-siguiente-pregunta';
+  zonaSig.appendChild(btnSiguiente);
+  btnSiguiente.addEventListener('click', avanzar);
+}
+
+function avanzar(){
+  const ronda = ESTADO.rondaActual;
+  const esUltimaDeRonda = ESTADO.indiceEnRonda === ESTADO.preguntasSesion[ronda].length - 1;
+
+  if(esUltimaDeRonda){
+    if(ronda < 3){
+      renderTransicionRonda(ronda + 1, false);
+    } else {
+      finalizarJuego();
+    }
+  } else {
+    ESTADO.indiceEnRonda += 1;
+    renderPregunta();
+  }
+}
+
+// ============================================================
 // PANTALLA DE INICIO
 // ============================================================
 
@@ -681,162 +837,6 @@ function logoIsotipoDataUrl(){
 }
 function guardarUltimoNombre(nombre){
   try{ const d=JSON.parse(localStorage.getItem('wha_data')||'{}'); d.ultimoNombre=nombre; localStorage.setItem('wha_data',JSON.stringify(d)); }catch(e){}
-}
-
-// ============================================================
-// INICIAR JUEGO
-// ============================================================
-
-function iniciarJuego(intento){
-  ESTADO.intento = intento;
-  prepararSesion();
-  renderTransicionRonda(1, true);
-}
-
-// ============================================================
-// TRANSICIÓN DE RONDA
-// ============================================================
-
-function renderTransicionRonda(numRonda, esInicio){
-  const info = RONDA_INFO[numRonda];
-  const cont = $('#pantalla-app');
-  cont.innerHTML = `
-    <div class="transicion">
-      <div class="num-ronda">RONDA ${numRonda} DE 3</div>
-      <h2>${info.nombre}</h2>
-      <p>${info.intro}</p>
-      <button class="btn" id="btn-empezar-ronda">${esInicio ? 'Comenzar Ronda 1' : 'Continuar →'}</button>
-    </div>
-  `;
-  document.getElementById('btn-empezar-ronda').addEventListener('click', () => {
-    ESTADO.rondaActual = numRonda;
-    ESTADO.indiceEnRonda = 0;
-    ESTADO.respondida = false;
-    renderPregunta();
-  });
-}
-
-// ============================================================
-// PANTALLA DE PREGUNTA
-// ============================================================
-
-function renderPregunta(){
-  const ronda = ESTADO.rondaActual;
-  const preguntas = ESTADO.preguntasSesion[ronda];
-  const idx = ESTADO.indiceEnRonda;
-  const pregunta = preguntas[idx];
-
-  const totalEnRonda = preguntas.length;
-  const numGlobal = sumaPreguntasRondasPrevias(ronda) + idx + 1;
-  const pctGlobal = Math.round((numGlobal-1) / ESTADO.totalPreguntas * 100);
-
-  const cont = $('#pantalla-app');
-  cont.innerHTML = `
-    <div class="hud">
-      <span class="ronda-tag">${RONDA_INFO[ronda].nombre}</span>
-      <div class="progreso-wrap">
-        <div class="barra-progreso"><div style="width:${pctGlobal}%"></div></div>
-      </div>
-      <span class="score-box">⚡ ${ESTADO.score} pts</span>
-      <button class="btn-audio-cuestionario" id="btn-audio-cuestionario">${AUDIO_ACTIVO ? '🔊' : '🔇'}</button>
-    </div>
-    <div class="pregunta-num">Pregunta ${idx+1} de ${totalEnRonda} · (${numGlobal}/${ESTADO.totalPreguntas} total)</div>
-    <div class="pregunta-texto">${escapeHtml(pregunta.pregunta)}</div>
-    <div class="opciones" id="lista-opciones"></div>
-    <div id="zona-retro"></div>
-    <div class="siguiente-wrap" id="zona-siguiente"></div>
-  `;
-
-  const btnAudio = document.getElementById('btn-audio-cuestionario');
-  if(btnAudio){
-    btnAudio.addEventListener('click', () => {
-      const activo = toggleAudio();
-      btnAudio.textContent = activo ? '🔊' : '🔇';
-    });
-  }
-
-
-  const listaOpciones = document.getElementById('lista-opciones');
-  pregunta.opciones.forEach((texto, i) => {
-    const btnOp = el('button', 'opcion', escapeHtml(texto));
-    btnOp.dataset.idx = i;
-    btnOp.addEventListener('click', () => onResponder(i, pregunta));
-    listaOpciones.appendChild(btnOp);
-  });
-
-  ESTADO.respondida = false;
-}
-
-function sumaPreguntasRondasPrevias(rondaActual){
-  let suma = 0;
-  for(let r=1; r<rondaActual; r++){
-    suma += ESTADO.preguntasSesion[r].length;
-  }
-  return suma;
-}
-
-function onResponder(indiceElegido, pregunta){
-  if(ESTADO.respondida) return;
-  ESTADO.respondida = true;
-
-  const esCorrecta = indiceElegido === pregunta.correcta;
-  if(esCorrecta){
-    ESTADO.score += PUNTOS_POR_ACIERTO;
-    ESTADO.correctas += 1;
-    ESTADO.resultadosPorRonda[ESTADO.rondaActual] += 1;
-  }
-
-  // Marcar visualmente las opciones
-  const botones = document.querySelectorAll('#lista-opciones .opcion');
-  botones.forEach(btn => {
-    btn.disabled = true;
-    const i = Number(btn.dataset.idx);
-    if(i === pregunta.correcta){
-      btn.classList.add('correcta');
-    }
-    if(i === indiceElegido && !esCorrecta){
-      btn.classList.add('incorrecta');
-    }
-  });
-
-  // Retroalimentación
-  const zonaRetro = document.getElementById('zona-retro');
-  zonaRetro.innerHTML = `
-    <div class="retro-box ${esCorrecta ? 'ok' : 'no'}">
-      <span class="etiqueta">${esCorrecta ? '✓ Correcto' : '✕ No es la respuesta correcta'}</span>
-      ${escapeHtml(pregunta.retro)}
-    </div>
-  `;
-
-  // Botón siguiente
-  const zonaSig = document.getElementById('zona-siguiente');
-  const esUltimaDeRonda = ESTADO.indiceEnRonda === ESTADO.preguntasSesion[ESTADO.rondaActual].length - 1;
-  const esUltimaRonda = ESTADO.rondaActual === 3;
-
-  let textoBoton = "Siguiente pregunta →";
-  if(esUltimaDeRonda && !esUltimaRonda) textoBoton = `Finalizar ${RONDA_INFO[ESTADO.rondaActual].nombre.split('·')[0].trim()} →`;
-  if(esUltimaDeRonda && esUltimaRonda) textoBoton = "Ver mis resultados →";
-
-  const btnSiguiente = el('button','btn', textoBoton);
-  btnSiguiente.id = 'btn-siguiente-pregunta';
-  zonaSig.appendChild(btnSiguiente);
-  btnSiguiente.addEventListener('click', avanzar);
-}
-
-function avanzar(){
-  const ronda = ESTADO.rondaActual;
-  const esUltimaDeRonda = ESTADO.indiceEnRonda === ESTADO.preguntasSesion[ronda].length - 1;
-
-  if(esUltimaDeRonda){
-    if(ronda < 3){
-      renderTransicionRonda(ronda + 1, false);
-    } else {
-      finalizarJuego();
-    }
-  } else {
-    ESTADO.indiceEnRonda += 1;
-    renderPregunta();
-  }
 }
 
 // ============================================================

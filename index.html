@@ -89,6 +89,7 @@ p.sub{ text-align:center; color:var(--texto-tenue); font-size:14px; margin-botto
 }
 .tarjeta-desafio.activa:hover{ transform: translateY(-2px); border-color: var(--dorado); }
 .tarjeta-desafio.bloqueada{ opacity:0.6; cursor:default; }
+.tarjeta-desafio.completada{ opacity:0.75; cursor:default; border-color:rgba(62,207,110,0.25); }
 
 .icono-desafio{ font-size:30px; width:42px; text-align:center; }
 .info-desafio{ flex:1; }
@@ -97,6 +98,7 @@ p.sub{ text-align:center; color:var(--texto-tenue); font-size:14px; margin-botto
 .info-desafio .estado-liberacion{ font-size:11.5px; margin-top:5px; font-weight:700; }
 .estado-liberacion.disponible{ color: var(--verde); }
 .estado-liberacion.bloqueado{ color: var(--dorado); }
+.estado-liberacion.completado{ color: var(--verde); }
 
 .candado{ font-size:18px; opacity:0.7; }
 
@@ -171,25 +173,28 @@ const DESAFIOS = [
     id: "lavado",
     nombre: "Lavado",
     icono: "🧺",
-    descripcion: "35 preguntas · instalación, producto y experto",
+    descripcion: "Día 1 · instalación, producto y experto",
     url: "cuestionario.html",
-    fechaLiberacion: fechaGuatemala(2026, 6, 18, 7, 0) // jueves 18 de junio, 7:00 am
-  },
-  {
-    id: "refrigeracion",
-    nombre: "Refrigeración",
-    icono: "🧊",
-    descripcion: "Próximamente · side-by-side, inverter, twin cooling",
-    url: "refrigeracion.html",
-    fechaLiberacion: fechaGuatemala(2026, 6, 19, 7, 0) // viernes 19 de junio, 7:00 am
+    fechaLiberacion: fechaGuatemala(2026, 6, 18, 7, 0),   // abierto desde 18 de junio
+    fechaCierre:    fechaGuatemala(2026, 6, 23, 18, 0)    // cierra lunes 23 de junio, 6:00 pm
   },
   {
     id: "coccion",
     nombre: "Cocción",
     icono: "🔥",
-    descripcion: "Próximamente · estufas de gas y eléctricas",
-    url: "coccion.html",
-    fechaLiberacion: fechaGuatemala(2026, 6, 19, 7, 0) // viernes 19 de junio, 7:00 am
+    descripcion: "Día 2 · estufas de gas y eléctricas",
+    url: "cuestionario_estufas.html",
+    fechaLiberacion: fechaGuatemala(2026, 6, 18, 7, 0),   // abierto desde 18 de junio
+    fechaCierre:    fechaGuatemala(2026, 6, 23, 18, 0)    // cierra lunes 23 de junio, 6:00 pm
+  },
+  {
+    id: "refrigeracion",
+    nombre: "Refrigeración",
+    icono: "🧊",
+    descripcion: "Día 3 · side-by-side, inverter, twin cooling",
+    url: "cuestionario_refrigeracion.html",
+    fechaLiberacion: fechaGuatemala(2026, 6, 18, 7, 0),   // abierto desde 18 de junio
+    fechaCierre:    fechaGuatemala(2026, 6, 23, 18, 0)    // cierra lunes 23 de junio, 6:00 pm
   }
 ];
 
@@ -386,8 +391,12 @@ function formatearFechaLiberacion(fecha){
   return `${diaSemana} ${dia} de ${mes}, ${hora12}${minutoTxt} ${ampm}`;
 }
 
-function estaDisponible(desafio){
-  return new Date() >= desafio.fechaLiberacion;
+// Determina el estado de un desafío: 'bloqueado' | 'activo' | 'cerrado'
+function estadoDesafio(desafio){
+  const ahora = new Date();
+  if(ahora < desafio.fechaLiberacion) return 'bloqueado';
+  if(desafio.fechaCierre && ahora >= desafio.fechaCierre) return 'cerrado';
+  return 'activo';
 }
 
 function renderMenu(){
@@ -395,9 +404,9 @@ function renderMenu(){
   cont.innerHTML = '';
 
   DESAFIOS.forEach(desafio => {
-    const disponible = estaDisponible(desafio);
+    const estado = estadoDesafio(desafio);
 
-    if(disponible){
+    if(estado === 'activo'){
       const a = document.createElement('a');
       a.href = desafio.url;
       a.className = 'tarjeta-desafio activa';
@@ -406,10 +415,24 @@ function renderMenu(){
         <div class="info-desafio">
           <strong>${desafio.nombre}</strong>
           <span>${desafio.descripcion}</span>
-          <span class="estado-liberacion disponible">● Disponible ahora</span>
+          <span class="estado-liberacion disponible">● Disponible ahora${desafio.fechaCierre ? ' · cierra ' + formatearFechaLiberacion(desafio.fechaCierre) : ''}</span>
         </div>
       `;
       cont.appendChild(a);
+
+    } else if(estado === 'cerrado'){
+      const div = document.createElement('div');
+      div.className = 'tarjeta-desafio completada';
+      div.innerHTML = `
+        <div class="icono-desafio">${desafio.icono}</div>
+        <div class="info-desafio">
+          <strong>${desafio.nombre}</strong>
+          <span>${desafio.descripcion}</span>
+          <span class="estado-liberacion completado">✅ Fase completada</span>
+        </div>
+      `;
+      cont.appendChild(div);
+
     } else {
       const div = document.createElement('div');
       div.className = 'tarjeta-desafio bloqueada';
